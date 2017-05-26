@@ -8,9 +8,9 @@ var sprintf = util.format;
 /**
  * Options object provided when constructing a SyslogStream.
  * @typedef {object} SyslogStreamOptions
- * @property {int} [facility] - The syslog facility code to be used for log messages. Read more at {@link https://en.wikipedia.org/wiki/Syslog#Facility}.
- * @property {string} [name] - The name of the program or process that is generating the log messages. Read more at {@link https://en.wikipedia.org/wiki/Syslog#Message_.28MSG.29}.
- * @property {string} [path] - The path to the UNIX datagram domain socket to which the log messages will be sent.
+ * @property {int} [facility] - The syslog facility code to be used for log messages. Read more at {@link https://en.wikipedia.org/wiki/Syslog#Facility}. Defaults to 1 (user facility).
+ * @property {string} [name] - The name of the program or process that is generating the log messages. Read more at {@link https://en.wikipedia.org/wiki/Syslog#Message_.28MSG.29}. Defaults to process.title || process.argv[0].
+ * @property {string} [path] - The path to the UNIX datagram domain socket to which the log messages will be sent. Defaults to /dev/log.
  */
 
 var HOSTNAME = os.hostname();
@@ -80,7 +80,7 @@ function SyslogStream(options) {
     assert.optionalString(options.path, 'options.path');
 
     var defaultOptions = {
-        facility: 16,
+        facility: 1,
         name: process.title || process.argv[0],
         path: '/dev/log'
     };
@@ -112,12 +112,25 @@ function SyslogStream(options) {
      */
     this._congested = false;
 
+    /**
+     * Socket connected to the UNIX domain.
+     * @private
+     */
     this._socket = dgram.createSocket('unix_dgram');
-    this._socket.once('connect', this._onConnection.bind(this));
+
+    /**
+     * Function to be run on socket connection error. This is done so that users of
+     * this stream will receive more informative exception messages when the socket fails to connect.
+     * @type {function}
+     * @private
+     */
+    this._boundOnConnectionFailure = this._onConnectionFailure.bind(this);
+
+    this._socket.on('error', this._boundOnConnectionFailure);
+    this._socket.once('connect', this._onConnectionSuccess.bind(this));
     this._socket.on('congestion', this._onCongestion.bind(this));
     this._socket.on('writable', this._onWritable.bind(this));
 
-    //todo: provide a more informative message on connect failure
     this._socket.connect(this._options.path);
 
 }
@@ -153,7 +166,33 @@ SyslogStream.prototype._handleQueue = function () {
 
 };
 
-SyslogStream.prototype._onConnection = function () {
+SyslogStream.prototype._onConnectionFailure = function (err) {
+
+    var errMsg;
+    var path = this._options.path;
+
+    switch (-err.errno) {
+        case 2:
+            errMsg = path + ' does not exist. Provide a path to a socket that does exist';
+            break;
+        case 13:
+            errMsg = 'Access was denied to the socket located at ' + path + '. Ensure your user has write privileges to the socket';
+            break;
+        case 91:
+            errMsg = path + ' is not a dgram socket. You may be trying to connect to a stream socket. Ensure the socket uses the datagram protocol.';
+            break;
+        default:
+            errMsg = "Failed to connect to " + path + '. The errno code was ' + (-err.errno) + '.';
+            break;
+    }
+    throw new Error(errMsg);
+};
+
+SyslogStream.prototype._onConnectionSuccess = function () {
+
+    //remove listener that is checking for connection error since connection has succeeded
+    this._socket.removeListener('error', this._boundOnConnectionFailure);
+
     this._connected = true;
     this._handleQueue();
 };
@@ -182,6 +221,7 @@ SyslogStream.prototype.write = function (record) {
     var name = this._options.name;
     var pid = process.pid;
 
+    //todo: ensure header format works with different versions of syslog or atleast try?
     var header = sprintf('<%d>%s %s %s[%d]:', priority, time, hostname, name, pid);
     this._send(new Buffer(header + message + '\n', 'utf-8'))
 };
