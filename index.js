@@ -1,14 +1,70 @@
 var merge = require('lodash.merge');
 var dgram = require('unix-dgram');
 var assert = require('assert-plus');
+var os = require('os');
+var util = require('util');
+var sprintf = util.format;
 
 /**
  * Options object provided when constructing a SyslogStream.
  * @typedef {object} SyslogStreamOptions
- * @property {int} facility - The syslog facility code to be used for log messages. Read more at {@link https://en.wikipedia.org/wiki/Syslog#Facility}.
- * @property {string} name - The name of the program or process that is generating the log messages. Read more at {@link https://en.wikipedia.org/wiki/Syslog#Message_.28MSG.29}.
- * @property {string} path - The path to the UNIX datagram domain socket to which the log messages will be sent.
+ * @property {int} [facility] - The syslog facility code to be used for log messages. Read more at {@link https://en.wikipedia.org/wiki/Syslog#Facility}.
+ * @property {string} [name] - The name of the program or process that is generating the log messages. Read more at {@link https://en.wikipedia.org/wiki/Syslog#Message_.28MSG.29}.
+ * @property {string} [path] - The path to the UNIX datagram domain socket to which the log messages will be sent.
  */
+
+var HOSTNAME = os.hostname();
+
+/**
+ * Converts bunyan log level to syslog log level.
+ * @param {int} level - Bunyan log level.
+ * @returns {int} Syslog log level.
+ */
+function level(level) {
+
+    var syslog = {
+        EMERG: 0,
+        ERR: 3,
+        WARNING: 4,
+        INFO: 6,
+        DEBUG: 7
+    };
+
+    var bunyan = {
+        FATAL: 60,
+        ERROR: 50,
+        WARN: 40,
+        INFO: 30,
+        DEBUG: 20,
+        TRACE: 10
+    };
+
+    var sysl;
+
+    switch (level) {
+        case bunyan.FATAL:
+            sysl = syslog.EMERG;
+            break;
+
+        case bunyan.ERROR:
+            sysl = syslog.ERR;
+            break;
+
+        case bunyan.WARN:
+            sysl = syslog.WARNING;
+            break;
+
+        case bunyan.INFO:
+            sysl = syslog.INFO;
+            break;
+
+        default:
+            sysl = syslog.DEBUG;
+            break;
+    }
+
+    return (sysl);
+}
 
 /**
  * Create a new syslog stream.
@@ -36,7 +92,7 @@ function SyslogStream(options) {
     this._options = merge(defaultOptions, options);
 
     /**
-     * Messages that are queued up to be sent.
+     * Messages that are queued to be sent.
      * @type {Buffer[]}
      * @private
      */
@@ -60,8 +116,29 @@ function SyslogStream(options) {
     this._socket.once('connect', this._onConnection.bind(this));
     this._socket.on('congestion', this._onCongestion.bind(this));
     this._socket.on('writable', this._onWritable.bind(this));
+
+    //todo: provide a more informative message on connect failure
     this._socket.connect(this._options.path);
 
+}
+
+function safeCycles() {
+
+    //todo: quicker safeCycles method?
+    var seen = [];
+
+    function bunyanCycles(k, v) {
+        if (!v || typeof (v) !== 'object') {
+            return (v);
+        }
+        if (seen.indexOf(v) !== -1) {
+            return ('[Circular]');
+        }
+        seen.push(v);
+        return (v);
+    }
+
+    return (bunyanCycles);
 }
 
 SyslogStream.prototype._handleQueue = function () {
@@ -91,10 +168,22 @@ SyslogStream.prototype._onWritable = function () {
     this._handleQueue();
 };
 
-SyslogStream.prototype.write = function (msg) {
+SyslogStream.prototype.write = function (record) {
 
-    //todo: finish implementing this function
-    this._send(new Buffer(msg + '\n', 'utf-8'))
+    //todo: allow custom functions for creating header and message
+    if (typeof record !== 'object') {
+        throw new Error("Use 'raw' log messages when setting up this stream for Bunyan.")
+    }
+
+    var message = JSON.stringify(record, safeCycles());
+    var hostname = record.hostname || HOSTNAME;
+    var priority = (this._options.facility * 8) + level(record.level);
+    var time = record.time;
+    var name = this._options.name;
+    var pid = process.pid;
+
+    var header = sprintf('<%d>%s %s %s[%d]:', priority, time, hostname, name, pid);
+    this._send(new Buffer(header + message + '\n', 'utf-8'))
 };
 
 SyslogStream.prototype._send = function (buf) {
