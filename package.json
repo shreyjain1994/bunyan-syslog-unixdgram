@@ -1,7 +1,7 @@
 {
   "name": "bunyan-syslog-unixdgram",
-  "version": "1.0.0",
-  "description": "Bunyan stream for syslog listening at a unix datagram domain socket, such as /dev/log.",
+  "version": "1.0.1",
+  "description": "Syslog stream for bunyan requiring no syslog configuration.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -14,11 +14,13 @@
   },
   "dependencies": {
     "assert-plus": "^1.0.0",
+    "json-stringify-safe": "^5.0.1",
     "lodash.merge": "^4.6.0",
     "unix-dgram": "^2.0.1"
   },
   "devDependencies": {
     "bunyan": "^1.8.10",
     "tmp": "0.0.31"
-  }
+  },
+  "keywords": ["bunyan", "syslog", "stream", "datagram", "unix"]
 }

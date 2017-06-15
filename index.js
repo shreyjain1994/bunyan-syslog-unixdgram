@@ -4,14 +4,7 @@ var assert = require('assert-plus');
 var os = require('os');
 var util = require('util');
 var sprintf = util.format;
-
-/**
- * Options object provided when constructing a SyslogStream.
- * @typedef {object} SyslogStreamOptions
- * @property {int} [facility] - The syslog facility code to be used for log messages. Read more at {@link https://en.wikipedia.org/wiki/Syslog#Facility}. Defaults to 1 (user facility).
- * @property {string} [name] - The name of the program or process that is generating the log messages. Read more at {@link https://en.wikipedia.org/wiki/Syslog#Message_.28MSG.29}. Defaults to process.title || process.argv[0].
- * @property {string} [path] - The path to the UNIX datagram domain socket to which the log messages will be sent. Defaults to /dev/log.
- */
+var stringify = require('json-stringify-safe');
 
 var HOSTNAME = os.hostname();
 
@@ -68,7 +61,9 @@ function level(level) {
 
 /**
  * Create a new syslog stream.
- * @param {SyslogStreamOptions} [options]
+ * @param{int} [options.facility] - The syslog facility code to be used for log messages. Read more at {@link https://en.wikipedia.org/wiki/Syslog#Facility}. Defaults to 1 (user facility).
+ * @param {string} [options.name] - The name of the program or process that is generating the log messages. Read more at {@link https://en.wikipedia.org/wiki/Syslog#Message_.28MSG.29}. Defaults to process.title || process.argv[0].
+ * @param {string} [options.path] - The path to the UNIX datagram domain socket to which the log messages will be sent. Defaults to /dev/log.
  * @constructor
  */
 function SyslogStream(options) {
@@ -135,25 +130,6 @@ function SyslogStream(options) {
 
 }
 
-function safeCycles() {
-
-    //todo: quicker safeCycles method?
-    var seen = [];
-
-    function bunyanCycles(k, v) {
-        if (!v || typeof (v) !== 'object') {
-            return (v);
-        }
-        if (seen.indexOf(v) !== -1) {
-            return ('[Circular]');
-        }
-        seen.push(v);
-        return (v);
-    }
-
-    return (bunyanCycles);
-}
-
 SyslogStream.prototype._handleQueue = function () {
 
     var self = this;
@@ -214,7 +190,7 @@ SyslogStream.prototype.write = function (record) {
         throw new Error("Use 'raw' log messages when setting up this stream for Bunyan.")
     }
 
-    var message = JSON.stringify(record, safeCycles());
+    var message = stringify(record);
     var hostname = record.hostname || HOSTNAME;
     var priority = (this._options.facility * 8) + level(record.level);
     var time = record.time;

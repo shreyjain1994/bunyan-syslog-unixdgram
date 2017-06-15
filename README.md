@@ -1,8 +1,15 @@
 # Bunyan Syslog Unix Datagram
 
-bunyan-syslog-unixdgram is a stream for [bunyan](https://github.com/trentm/node-bunyan)
-that consumes `raw` records from bunyan and sends them to a syslog server listening
-at a UNIX datagram domain socket.
+A syslog stream for [bunyan](https://github.com/trentm/node-bunyan) that works without requiring
+any configuration to the syslog daemon.
+
+In most UNIX systems, syslog is automatically configured to be listening at a UNIX datagram
+domain socket (most likely /var/log), so any messages sent there will be logged by syslog.
+This stream connects to datagram domain sockets, so unlike other bunyan syslog stream
+implementations, you won't have to go and change your syslog config file to enable a
+TCP/UDP server.
+
+It just works, which makes it easier to use for beginners.
 
 ## Installation
 
