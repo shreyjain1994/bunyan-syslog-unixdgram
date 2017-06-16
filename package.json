@@ -1,6 +1,6 @@
 {
   "name": "bunyan-syslog-unixdgram",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Syslog stream for bunyan requiring no syslog configuration.",
   "main": "index.js",
   "scripts": {

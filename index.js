@@ -1,3 +1,5 @@
+"use strict";
+
 var merge = require('lodash.merge');
 var dgram = require('unix-dgram');
 var assert = require('assert-plus');
