@@ -1,8 +1,9 @@
 {
   "name": "bunyan-syslog-unixdgram",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Syslog stream for bunyan requiring no syslog configuration.",
   "main": "index.js",
+  "types": "index.d.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -13,6 +14,7 @@
     "url": "git://github.com/shreyjain1994/bunyan-syslog-unixdgram.git"
   },
   "dependencies": {
+    "@types/node": "*",
     "assert-plus": "^1.0.0",
     "json-stringify-safe": "^5.0.1",
     "lodash.merge": "^4.6.0",
